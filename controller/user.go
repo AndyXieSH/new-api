@@ -155,11 +155,18 @@ func Register(c *gin.Context) {
 		return
 	}
 	if common.EmailVerificationEnabled {
+		user.Email = strings.ToLower(strings.TrimSpace(user.Email))
+		user.VerificationCode = strings.TrimSpace(user.VerificationCode)
 		if user.Email == "" || user.VerificationCode == "" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
 			return
 		}
-		if !common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose) {
+		ok, err := model.VerifyEmailVerificationCode(user.Email, common.EmailVerificationPurpose, user.VerificationCode)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if !ok {
 			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 			return
 		}
@@ -1028,9 +1035,14 @@ func EmailBind(c *gin.Context) {
 		common.ApiError(c, errors.New("invalid request body"))
 		return
 	}
-	email := req.Email
-	code := req.Code
-	if !common.VerifyCodeWithKey(email, code, common.EmailVerificationPurpose) {
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	code := strings.TrimSpace(req.Code)
+	ok, err := model.VerifyEmailVerificationCode(email, common.EmailVerificationPurpose, code)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !ok {
 		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 		return
 	}
@@ -1039,7 +1051,7 @@ func EmailBind(c *gin.Context) {
 	user := model.User{
 		Id: id.(int),
 	}
-	err := user.FillUserById()
+	err = user.FillUserById()
 	if err != nil {
 		common.ApiError(c, err)
 		return
